@@ -1,0 +1,1 @@
+cmd_/home/swann/SDK/IMX_283A/DriverDefine/gpio/gpio_driver.ko := arm-fsl-linux-gnueabi-ld -EL -r  -T /home/swann/SDK/IMX_283A/linux-2.6.35.3/scripts/module-common.lds --build-id -o /home/swann/SDK/IMX_283A/DriverDefine/gpio/gpio_driver.ko /home/swann/SDK/IMX_283A/DriverDefine/gpio/gpio_driver.o /home/swann/SDK/IMX_283A/DriverDefine/gpio/gpio_driver.mod.o

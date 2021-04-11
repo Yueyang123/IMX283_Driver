@@ -1,0 +1,2 @@
+/home/swann/IMX_283A/IMX_DRIVER/I2c/24C02_A.ko
+/home/swann/IMX_283A/IMX_DRIVER/I2c/24C02_A.o

@@ -1,0 +1,1 @@
+cmd_/home/swann/IMX_283A/IMX_DRIVER/ov2640/sccb.ko := arm-fsl-linux-gnueabi-ld -EL -r  -T /home/swann/IMX_283A/linux-2.6.35.3/scripts/module-common.lds --build-id -o /home/swann/IMX_283A/IMX_DRIVER/ov2640/sccb.ko /home/swann/IMX_283A/IMX_DRIVER/ov2640/sccb.o /home/swann/IMX_283A/IMX_DRIVER/ov2640/sccb.mod.o

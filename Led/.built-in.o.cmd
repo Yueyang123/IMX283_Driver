@@ -1,0 +1,1 @@
+cmd_/home/swann/SDK/IMX_283A/DriverDefine/Led/built-in.o :=  rm -f /home/swann/SDK/IMX_283A/DriverDefine/Led/built-in.o; arm-fsl-linux-gnueabi-ar rcs /home/swann/SDK/IMX_283A/DriverDefine/Led/built-in.o

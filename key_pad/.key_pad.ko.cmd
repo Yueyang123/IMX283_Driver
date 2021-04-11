@@ -1,0 +1,1 @@
+cmd_/home/swann/IMX_283A/IMX_DRIVER/key_pad/key_pad.ko := arm-fsl-linux-gnueabi-ld -EL -r  -T /home/swann/IMX_283A/linux-2.6.35.3/scripts/module-common.lds --build-id -o /home/swann/IMX_283A/IMX_DRIVER/key_pad/key_pad.ko /home/swann/IMX_283A/IMX_DRIVER/key_pad/key_pad.o /home/swann/IMX_283A/IMX_DRIVER/key_pad/key_pad.mod.o
