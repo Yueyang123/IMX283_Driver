@@ -1,0 +1,232 @@
+/*
+ * The PS/2 keyboard driver. use GPIO interrput
+ *
+ * Copyright (C) 2007 ShenZhen forsafe System Technology Co., Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
+#include <linux/types.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/version.h>
+#include <linux/device.h>
+#include <linux/cdev.h>
+#include <linux/interrupt.h>
+#include <linux/list.h>
+#include <linux/ioctl.h>
+#include <linux/fs.h>
+#include <linux/workqueue.h>
+#include <linux/spi/spi.h>
+#include <linux/delay.h>
+#include <linux/semaphore.h>
+#include <linux/platform_device.h>
+#include <linux/irq.h>
+#include <linux/io.h>
+#include <linux/errno.h>        /* error codes */
+#include <linux/ioport.h>
+#include <linux/fcntl.h>        /* O_ACCMODE */
+#include <linux/sched.h>
+#include <linux/wait.h>
+#include <linux/seq_file.h>
+#include <linux/proc_fs.h>
+#include <asm/irq.h>
+#include <asm/io.h>
+#include <asm/uaccess.h>
+#include <mach/platform.h>
+#include <asm/arch/hardware.h>
+#include <asm/arch/lpc32xx_gpio.h>
+#include <asm/arch/lpc32xx_clkpwr.h>
+#include <asm/arch/irqs.h>
+
+#define DRIVER_NAME		"GPIO PS/2"
+
+
+static int gpiops2_dev_major;
+
+static struct cdev *gpiops2_chardev;
+static struct io_ps2 *gpiops2_dev;
+
+
+static  struct file_operations gpiops2_fops = {
+    .owner = THIS_MODULE,
+    .read = gpiops2_read,
+    .write = gpiops2_write,
+    .ioctl = gpiops2_ioctl,
+    .open = gpiops2_open,
+    .release = gpiops2_release,
+};
+
+static void gpiops2_setup_cdev(struct cdev *dev, int minor,
+		struct file_operations *fops)
+{
+	int err, devno = MKDEV(gpiops2_dev_major, minor);
+    
+	cdev_init(dev, fops);
+	dev->owner = THIS_MODULE;
+	dev->ops = fops;
+	err = cdev_add (dev, devno, 1);
+	/* Fail gracefully if need be */
+	if (err)
+		printk (KERN_NOTICE "Error %d adding can_lpc2xxx%d", err, minor);
+}
+
+
+/*
+ * Initialization
+ */
+static int __init mcp251x_init(void)
+{
+    int ret,i;
+    dev_t dev;
+    struct io_ps2 *chip=gpiops2_dev;
+    
+    DEBUGMSG(DRIVER_NAME" init\n");
+    
+    gpiops2_dev = kmalloc(sizeof(struct io_ps2),GFP_KERNEL);
+    if (!gpiops2_dev) {
+        printk(KERN_WARNING "LPC32xx PS2: cannot allocate memmory for ps2dev");
+        ret = -1;
+        goto err_kmalloc_gpiops2_dev;
+    }
+
+    
+    INIT_WORK(&chip->read_wq, wq_read_feed);
+    INIT_WORK(&chip->write_wq, wq_write_feed);
+    
+    chip->can_available = (atomic_t)ATOMIC_INIT(1);
+    
+    init_waitqueue_head(&chip->rque);
+    init_waitqueue_head(&chip->Rxfifoque);
+    init_waitqueue_head(&chip->wque);
+    init_waitqueue_head(&chip->Txfifoque);
+    
+    /*init receive FIFO*/
+    chip->RxFIFO.fadd    = 0;
+    chip->RxFIFO.fremove = 0;
+    (chip->RxFIFO).count = 0;
+    (chip->RxFIFO).wp = 0;
+    (chip->RxFIFO).rp = 0;
+    //(chip->RxFIFO).buf = kmalloc(sizeof(struct canmsg_t)*CAN_CIRBUF_SIZE,GFP_KERNEL);
+    
+    spin_lock_init(&chip->RxFIFO.flock);
+    /*
+    if ( !(chip->RxFIFO).buf) {
+        printk(KERN_WARNING "mcp251x_CAN: cannot allocate memmory for receive FIFO buffer");
+        ret = -1;
+        goto err_kmalloc_buf;
+    }
+    */
+    
+    /*init Transimit FIFO*/
+    chip->TxFIFO.fadd    = 0;
+    chip->TxFIFO.fremove = 0;
+    (chip->TxFIFO).count = 0;
+    (chip->TxFIFO).wp = 0;
+    (chip->TxFIFO).rp = 0;
+    //(chip->TxFIFO).buf = kmalloc(sizeof(struct canmsg_t)*CAN_TXDBUF_SIZE,GFP_KERNEL);
+    spin_lock_init(&chip->TxFIFO.flock);
+    /*
+    if ( !(chip->TxFIFO).buf) {
+        printk(KERN_WARNING "mcp251x_CAN: cannot allocate memmory for transimit FIFO buffer");
+        ret = -1;
+        goto err_kmalloc_buf;
+    }
+    */
+    
+    set_irq_type(IRQ_GPIO_02, IRQ_TYPE_EDGE_FALLING);
+    //__raw_writel(PIO_DIR_GPIO(IRQ0_GPIO), GPIO_P2_DIR_CLR(GPIO_IOBASE));//GPIO_00 as input
+    spin_lock_init(&chip->canrlock);
+    chip->irq=IRQ_GPIO_02;
+    
+    ret = request_irq(chip->irq, gpiops2_irq, IRQF_DISABLED|IRQF_TRIGGER_FALLING,DRIVER_NAME, NULL);
+    if (ret < 0) {
+        dev_err(&chip->sdev, "request irq %d failed (ret = %d)\n", chip->irq, ret);
+        goto error_irq;
+    }
+    //lpc32xx_gpio_irq_set(0,Disable);
+
+/*******************************************************************/
+
+    /* Initialize character device interface */
+    dev = MKDEV(gpiops2_dev_major,0);
+
+    gpiops2_chardev = kmalloc(sizeof(struct cdev),GFP_KERNEL);
+    if (!gpiops2_chardev) {
+		printk(KERN_WARNING "gpiops2: cannot allocate memmory for cdev");
+		ret = -1;
+		goto err_kmalloc_cdev;
+    }
+
+
+    /* Figure out our device number. */
+    if (gpiops2_dev_major) {
+	    ret = register_chrdev( gpiops2_dev_major, DRIVER_NAME, &gpiops2_fops );
+    } else {
+	    ret = alloc_chrdev_region(&dev,/*base minor*/ 0, 1, "gpiops2");
+	    gpiops2_dev_major = MAJOR(dev);
+    }
+    
+    if (ret < 0) {
+	    printk(KERN_WARNING "gpiops2: unable to get major %d", gpiops2_dev_major);
+	    goto err_major;
+    }
+
+    if (gpiops2_dev_major == 0)
+	    gpiops2_dev_major = ret;
+
+	mcp251x_setup_cdev(gpiops2_chardev, i, &gpiops2_fops);
+
+    return 0;
+
+err_major:
+DEBUGMSG("err_major");
+    kfree(gpiops2_chardev);
+err_kmalloc_cdev:
+DEBUGMSG("err_kmalloc_cdev");
+    free_irq(IRQ_GPIO_02, NULL);
+error_irq:
+DEBUGMSG("error_irq");
+error_buf:
+DEBUGMSG("error_buf");
+err_kmalloc_buf:
+DEBUGMSG("err_kmalloc_buf");
+	kfree((gpiops2_dev.RxFIFO).buf);
+	kfree((gpiops2_dev.TxFIFO).buf);
+    kfree(gpiops2_dev);
+err_kmalloc_mcp251x_dev:
+DEBUGMSG("err_kmalloc_gpiops2_dev");
+    printk(KERN_WARNING "gpiops2 init FAILURE\n");
+    return ret;
+}
+
+
+/*
+ * Cleanup
+ */
+static void __exit gpiops2_cleanup(void)
+{
+
+    free_irq(gpiops2_dev.irq, NULL);
+    cdev_del(&gpiops2_chardev);
+    kfree((gpiops2_dev.RxFIFO).buf);
+    kfree((gpiops2_dev.TxFIFO).buf);
+    
+
+    kfree(gpiops2_chardev);
+    unregister_chrdev_region(MKDEV(gpiops2_dev_major, 0), 1);
+
+    DEBUGMSG(KERN_INFO "lpc32xx GPIO PS/2 exit");
+}
+
+
+module_init(gpiops2_init);
+module_exit(gpiops2_cleanup);
+
+MODULE_DESCRIPTION("lpc32xx GPIO PS/2 controller driver");
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("JiawenZhou");
+

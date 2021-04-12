@@ -38,6 +38,8 @@ static struct gpio_info all_gpios_info_283[] ={
         {3*32+22,   "gpio-P3.22",      NULL},
         {3*32+20,   "gpio-P3.20",      NULL},
         {2*32+7, 	"gpio-P2.7 ",      NULL},
+		{2*32+4, 	"gpio-P2.4 ",      NULL},
+		{2*32+6, 	"gpio-P2.6 ",      NULL},
         {0,               "",          NULL},   //the end
 };
 

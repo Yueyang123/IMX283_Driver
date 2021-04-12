@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "cctype": "c",
+        "climits": "c",
+        "cstdarg": "c",
+        "cstdio": "c",
+        "cstdlib": "c",
+        "cwchar": "c",
+        "cwctype": "c",
+        "cstdint": "c"
+    }
+}

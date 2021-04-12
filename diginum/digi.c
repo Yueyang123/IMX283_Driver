@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-04-11 16:18:34
- * @LastEditTime: 2021-04-11 17:23:23
+ * @LastEditTime: 2021-04-11 18:22:55
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /DriverDefine/diginum/digi.c
@@ -13,11 +13,13 @@
 #include <getopt.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <linux/types.h>
 #include <linux/spi/spidev.h>
 #include <pthread.h>
 #define SPI_DEVICE "/dev/spidev1.0"
 #define GPIO_DEVICE "/dev/gpio-P3.21"  /* gpio3.21 的属性文件  */
+#define RUN_VALUE "/tmp/digi"
 /* 显示数值和位选值的对照表 0 1 2 3 4 5 6 7 8 9 */
 uint8_t led_value_table[] = {0xC0, 0xF9, 0xa4, 0xb0, 0x99, 0x92, 0x82, 0xF8, 0x80, 0x90};
 static uint8_t mode = 0;
@@ -87,11 +89,13 @@ int main(int argc, char *argv[])
     led_value[1]=(value%1000)/100;
     led_value[2]=(value%100)/10;
     led_value[3]=(value%10);
+    
     fd_spi = open(SPI_DEVICE, O_RDWR);  /* 打开 SPI 总线的设备文件  */
     if (fd_spi < 0) {
     printf("can't open %s \n", SPI_DEVICE);
     return -1;
     }
+
     fd_gpio = open(GPIO_DEVICE, O_RDWR); /* 打开 GPIO 设备的属性文件 */
     if (fd_gpio < 0) {
     printf("can't open %s device\n", GPIO_DEVICE);

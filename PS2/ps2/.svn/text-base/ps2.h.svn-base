@@ -1,0 +1,40 @@
+#ifndef _PS2_H_
+#define _PS2_H_
+
+#define GPIO_IOBASE     io_p2v(GPIO_BASE)
+#define CLKPWR_IOBASE 	io_p2v(CLK_PM_BASE)
+
+#define CONFIG_PS2_DEBUG
+
+/* Define makro for driver debug-messages */
+#ifdef CONFIG_PS2_DEBUG
+#define DEBUGMSG(fmt,args...) printk(KERN_NOTICE "PS/2 (DEBUG): " fmt "\r\n",##args)
+#else
+#define DEBUGMSG(fmt,args...)		
+#endif
+
+
+
+struct io_ps2 {
+    struct cdev cdev;
+    struct device sdev;
+    int dev; /* device number */
+    atomic_t can_available;
+    struct work_struct read_wq; /* Work queue for reading buffers*/
+    struct work_struct write_wq; /* Work queue for reading buffers*/
+    wait_queue_head_t rque, Rxfifoque;
+    wait_queue_head_t wque, Txfifoque;
+    //wait_queue_head_t wque;
+    int srr_bit; /* self reception request */
+    int rfinish ;
+    int wfinish ;
+
+    int irq;
+
+    spinlock_t canrlock;                /* Spin lock for write operations */
+    spinlock_t canwlock;                /* Spin lock for read operations */
+
+};
+
+
+#endif
